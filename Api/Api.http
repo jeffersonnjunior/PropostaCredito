@@ -1,0 +1,8 @@
+@host = http://localhost:8081
+
+### Health
+GET {{host}}/health
+
+### Obter proposta por clienteId
+@clienteId = 00000000-0000-0000-0000-000000000000
+GET {{host}}/api/v1/propostas/{{clienteId}}
