@@ -1,0 +1,34 @@
+# Sobe a API da Proposta usando a infra compartilhada do Cadastro
+# (SQL Server :1433 e RabbitMQ :5672 já no ar via CadastroCliente).
+#
+# Pré-requisito:
+#   cd ../CadastroCliente/CadastroCliente && docker compose up -d
+#
+# Depois:
+#   docker compose up -d --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: credito-proposta-api
+    ports:
+      - "8081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: Server=host.docker.internal,1433;Database=PropostaCredito;User Id=sa;Password=Your_strong_Password123;TrustServerCertificate=True;Encrypt=False
+      RabbitMq__Host: host.docker.internal
+      RabbitMq__Port: "5672"
+      RabbitMq__UserName: credito
+      RabbitMq__Password: credito123
+      RabbitMq__ConsumeExchange: credito.clientes
+      RabbitMq__ConsumeRoutingKey: cliente.cadastrado
+      RabbitMq__ConsumeQueue: proposta.cliente-cadastrado
+      RabbitMq__ConsumeDlq: proposta.cliente-cadastrado.dlq
+      RabbitMq__PublishExchange: credito.propostas
+      RabbitMq__PublishRoutingKey: proposta.gerada
+      RabbitMq__Enabled: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
