@@ -129,19 +129,29 @@ public sealed class ClienteCadastradoConsumerHostedService : BackgroundService
             var @event = JsonSerializer.Deserialize<ClienteCadastradoEvent>(json, JsonOptions)
                 ?? throw new InvalidOperationException("Payload ClienteCadastrado inválido.");
 
+            _logger.LogInformation(
+                "Job: {JobName} | EventId={EventId} | ClienteId={ClienteId}",
+                GerarPropostaFromClienteCadastradoHandler.JobDisplayName,
+                @event.EventId,
+                @event.ClienteId);
+
             using var scope = _scopeFactory.CreateScope();
             var handler = scope.ServiceProvider.GetRequiredService<GerarPropostaFromClienteCadastradoHandler>();
             await handler.HandleAsync(@event);
 
             await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false);
             _logger.LogInformation(
-                "ClienteCadastrado processado. EventId={EventId} ClienteId={ClienteId}",
+                "Job: {JobName} concluído | EventId={EventId} | ClienteId={ClienteId}",
+                GerarPropostaFromClienteCadastradoHandler.JobDisplayName,
                 @event.EventId,
                 @event.ClienteId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Falha ao processar ClienteCadastrado. Enviando para DLQ.");
+            _logger.LogError(
+                ex,
+                "Job: {JobName} falhou. Enviando para DLQ.",
+                GerarPropostaFromClienteCadastradoHandler.JobDisplayName);
             await _channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false);
         }
     }

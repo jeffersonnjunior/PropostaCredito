@@ -13,6 +13,7 @@ public static class AddApplicationDependencyInjection
     {
         _ = configuration;
 
+        services.AddScoped<IGerarPropostaReaction, GerarPropostaReaction>();
         services.AddScoped<GerarPropostaFromClienteCadastradoHandler>();
         services.AddScoped<ObterPropostaHandler>();
     }
