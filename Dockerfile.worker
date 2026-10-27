@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY Domain/Domain.csproj Domain/
+COPY Application/Application.csproj Application/
+COPY Infrastructure/Infrastructure.csproj Infrastructure/
+COPY Worker/Worker.csproj Worker/
+
+RUN dotnet restore Worker/Worker.csproj
+
+COPY Domain/ Domain/
+COPY Application/ Application/
+COPY Infrastructure/ Infrastructure/
+COPY Worker/ Worker/
+
+RUN dotnet publish Worker/Worker.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+ENTRYPOINT ["dotnet", "Worker.dll"]

@@ -2,13 +2,19 @@
 
 Microsserviço que **consome** `ClienteCadastrado`, calcula score, persiste a proposta e publica `PropostaGerada` (sempre, inclusive quando negada).
 
+## Processos
+
+| Projeto | Responsabilidade |
+|---------|------------------|
+| **Api** | REST `GET /api/v1/propostas/{clienteId}` + health |
+| **Worker** | Consumer RabbitMQ + outbox publisher |
+
 ## Stack
 
-- .NET 10 / ASP.NET Core
+- .NET 10 / ASP.NET Core + Worker Service
 - EF Core + SQL Server (database `PropostaCredito`)
-- RabbitMQ (consumer + outbox publisher)
-- Idempotência de consumidor (`processed_events` + unique `clienteId`)
-- DLQ: `proposta.cliente-cadastrado.dlq`
+- RabbitMQ (consumer com DLQ + outbox)
+- Idempotência (`processed_events` + unique `clienteId`)
 - xUnit + FluentAssertions + NSubstitute
 
 ## Regras de score
@@ -23,24 +29,25 @@ Score = `long.Parse(cpf) % 1001` (determinístico).
 
 ## Subir
 
-1. Infra compartilhada (Cadastro):
+1. Infra (Cadastro):
 
 ```bash
 cd ../CadastroCliente/CadastroCliente
 docker compose up -d
 ```
 
-2. API Proposta:
+2. Api + Worker:
 
 ```bash
 cd ../../PropostaCredito
 docker compose up -d --build
 ```
 
-Ou local:
+Local:
 
 ```bash
 dotnet run --project Api
+dotnet run --project Worker
 ```
 
 | Serviço | URL |
@@ -48,20 +55,18 @@ dotnet run --project Api
 | API Proposta | http://localhost:8081 |
 | Health | http://localhost:8081/health |
 | OpenAPI | http://localhost:8081/openapi/v1.json |
-| GET proposta | `GET /api/v1/propostas/{clienteId}` |
 
 ## Fluxo
 
 ```
-ClienteCadastrado (credito.clientes)
-  → fila proposta.cliente-cadastrado
-  → score + proposta (idempotente)
-  → outbox
-  → PropostaGerada (credito.propostas)
+ClienteCadastrado → Worker (fila + DLQ) → proposta idempotente → outbox
+  → PropostaGerada → RabbitMQ
+Api apenas consulta GET /propostas/{clienteId}
 ```
 
 ## Decisões
 
-- Idempotência: `eventId` em `processed_events` + 1 proposta por `clienteId`.
-- `PropostaGerada` também na negação (Cartão decide não emitir).
-- Mesmo Rabbit/SQL do Cadastro; database separado (`PropostaCredito`).
+- **Api ≠ Worker**: REST e mensageria escalam separados.
+- Idempotência: `eventId` + 1 proposta por `clienteId`.
+- `PropostaGerada` também na negação.
+- Mesmo Rabbit/SQL do Cadastro; database `PropostaCredito`.

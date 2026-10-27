@@ -14,6 +14,9 @@ namespace Infrastructure.DependencyInjection;
 
 public static class AddInfrastructureDependencyInjection
 {
+    /// <summary>
+    /// Persistência e ports compartilhados (Api + Worker).
+    /// </summary>
     public static void DependencyInjectionInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -36,11 +39,18 @@ public static class AddInfrastructureDependencyInjection
         services.AddScoped<IOutboxWriter, OutboxWriter>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<IMessageBus, RabbitMqMessageBus>();
-        services.AddHostedService<OutboxProcessorHostedService>();
-        services.AddHostedService<ClienteCadastradoConsumerHostedService>();
 
         services.AddHealthChecks()
             .AddDbContextCheck<PropostaDbContext>();
+    }
+
+    /// <summary>
+    /// Background workers (consumer + outbox) — apenas no projeto Worker.
+    /// </summary>
+    public static void DependencyInjectionWorkers(this IServiceCollection services)
+    {
+        services.AddHostedService<OutboxProcessorHostedService>();
+        services.AddHostedService<ClienteCadastradoConsumerHostedService>();
     }
 
     public static async Task MigrateDatabaseAsync(
