@@ -2,6 +2,7 @@ using Application.Events;
 using Application.Interfaces;
 using Application.Propostas.GerarProposta;
 using Domain.Entities;
+using Domain.Enums;
 using NSubstitute;
 
 namespace PropostaCredito.Tests.Application;
@@ -77,5 +78,70 @@ public class GerarPropostaFromClienteCadastradoHandlerTests
         // Assert
         await _reaction.DidNotReceive().ExecuteAsync(Arg.Any<Proposta>(), Arg.Any<CancellationToken>());
         await _processed.Received(1).MarkProcessedAsync(eventId, "ClienteCadastrado", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_QuandoScoreBaixo_DeveGerarPropostaNegada()
+    {
+        // Arrange — score 77 → Negada / 0 cartões
+        var eventId = Guid.NewGuid();
+        var clienteId = Guid.NewGuid();
+        _processed.ExistsAsync(eventId, Arg.Any<CancellationToken>()).Returns(false);
+        _propostas.ExistsByClienteIdAsync(clienteId, Arg.Any<CancellationToken>()).Returns(false);
+        var sut = CreateSut();
+
+        // Act
+        await sut.HandleAsync(CreateEvent(eventId, clienteId, "00000000077"));
+
+        // Assert
+        await _reaction.Received(1).ExecuteAsync(
+            Arg.Is<Proposta>(p =>
+                p.Status == StatusProposta.Negada &&
+                p.QuantidadeCartoes == 0),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_QuandoScoreMedio_DeveGerarUmCartao()
+    {
+        // Arrange — score 455 → 1 cartão R$ 1.000
+        var eventId = Guid.NewGuid();
+        var clienteId = Guid.NewGuid();
+        _processed.ExistsAsync(eventId, Arg.Any<CancellationToken>()).Returns(false);
+        _propostas.ExistsByClienteIdAsync(clienteId, Arg.Any<CancellationToken>()).Returns(false);
+        var sut = CreateSut();
+
+        // Act
+        await sut.HandleAsync(CreateEvent(eventId, clienteId, "00000000455"));
+
+        // Assert
+        await _reaction.Received(1).ExecuteAsync(
+            Arg.Is<Proposta>(p =>
+                p.Status == StatusProposta.Aprovada &&
+                p.QuantidadeCartoes == 1 &&
+                p.LimitePorCartao == 1000m),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_QuandoScoreAlto_DeveGerarDoisCartoes()
+    {
+        // Arrange — score 800 → 2 cartões R$ 5.000
+        var eventId = Guid.NewGuid();
+        var clienteId = Guid.NewGuid();
+        _processed.ExistsAsync(eventId, Arg.Any<CancellationToken>()).Returns(false);
+        _propostas.ExistsByClienteIdAsync(clienteId, Arg.Any<CancellationToken>()).Returns(false);
+        var sut = CreateSut();
+
+        // Act
+        await sut.HandleAsync(CreateEvent(eventId, clienteId, "00000000800"));
+
+        // Assert
+        await _reaction.Received(1).ExecuteAsync(
+            Arg.Is<Proposta>(p =>
+                p.Status == StatusProposta.Aprovada &&
+                p.QuantidadeCartoes == 2 &&
+                p.LimitePorCartao == 5000m),
+            Arg.Any<CancellationToken>());
     }
 }
