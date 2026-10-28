@@ -13,19 +13,25 @@ Microsserviço que **consome** `ClienteCadastrado`, calcula score, persiste a pr
 
 - .NET 10 / ASP.NET Core + Worker Service
 - EF Core + SQL Server (database `PropostaCredito`)
-- RabbitMQ (consumer com DLQ + outbox)
+- RabbitMQ (consumer com DLQ + outbox + Polly retry)
 - Idempotência (`processed_events` + unique `clienteId`)
-- xUnit + FluentAssertions + NSubstitute
+- xUnit + FluentAssertions + NSubstitute (padrão AAA)
 
 ## Regras de score
 
 | Score | Status | Cartões | Limite |
-|------|--------|---------|--------|
+|------:|--------|--------:|--------|
 | 0–100 | Negada | 0 | — |
 | 101–500 | Aprovada | 1 | R$ 1.000 |
 | 501–1000 | Aprovada | 2 | R$ 5.000 cada (total R$ 10.000) |
 
 Score = `long.Parse(cpf) % 1001` (determinístico).
+
+## Resiliência
+
+- Retentativas: outbox (até 5) + Polly no publish
+- DLQ: `proposta.cliente-cadastrado.dlq`
+- Consistência eventual via outbox (sem 2PC)
 
 ## Subir
 
@@ -56,12 +62,23 @@ dotnet run --project Worker
 | Health | http://localhost:8081/health |
 | OpenAPI | http://localhost:8081/openapi/v1.json |
 
+## Endpoints
+
+- `GET /api/v1/propostas/{clienteId}`
+- `GET /health`
+
 ## Fluxo
 
 ```
 ClienteCadastrado → Worker (fila + DLQ) → proposta idempotente → outbox
-  → PropostaGerada → RabbitMQ
+  → PropostaGerada → exchange credito.propostas / proposta.gerada
 Api apenas consulta GET /propostas/{clienteId}
+```
+
+## Testes
+
+```bash
+dotnet test Tests/PropostaCredito.Tests.csproj
 ```
 
 ## Decisões
